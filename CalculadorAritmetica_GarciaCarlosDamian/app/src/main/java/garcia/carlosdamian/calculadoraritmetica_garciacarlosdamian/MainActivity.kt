@@ -6,13 +6,16 @@ import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import net.objecthunter.exp4j.Expression
 import net.objecthunter.exp4j.ExpressionBuilder
 
 class MainActivity : AppCompatActivity(), View.OnClickListener {
-    private var tvInput: TextView? = null
+
+    // Usamos lateinit para evitar los "!!"
+    private lateinit var tvInput: TextView
+
+    // Variables para controlar el estado de la entrada
     private var esPunto = false
-    private var esParentesisAbierto = false
+    private var ultimoEsNumero = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -20,87 +23,94 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
 
         tvInput = findViewById(R.id.tvInput)
 
-        // Asignar el listener a todos los botones
-        findViewById<View>(R.id.btn0).setOnClickListener(this)
-        findViewById<View>(R.id.btn1).setOnClickListener(this)
-        findViewById<View>(R.id.btn2).setOnClickListener(this)
-        findViewById<View>(R.id.btn3).setOnClickListener(this)
-        findViewById<View>(R.id.btn4).setOnClickListener(this)
-        findViewById<View>(R.id.btn5).setOnClickListener(this)
-        findViewById<View>(R.id.btn6).setOnClickListener(this)
-        findViewById<View>(R.id.btn7).setOnClickListener(this)
-        findViewById<View>(R.id.btn8).setOnClickListener(this)
-        findViewById<View>(R.id.btn9).setOnClickListener(this)
-        findViewById<View>(R.id.btnPunto).setOnClickListener(this)
+        // Asignar el listener a todos los botones numéricos y de punto
+        val buttonIds = listOf(
+            R.id.btn0, R.id.btn1, R.id.btn2, R.id.btn3, R.id.btn4, R.id.btn5, R.id.btn6, R.id.btn7, R.id.btn8, R.id.btn9, R.id.btnPunto
+        )
+        buttonIds.forEach { findViewById<Button>(it).setOnClickListener(this::onNumberClick) }
 
-        findViewById<View>(R.id.btnSumar).setOnClickListener(this)
-        findViewById<View>(R.id.btnRestar).setOnClickListener(this)
-        findViewById<View>(R.id.btnMultiplicar).setOnClickListener(this)
-        findViewById<View>(R.id.btnDividir).setOnClickListener(this)
-        findViewById<View>(R.id.btnPorcentaje).setOnClickListener(this)
-        findViewById<View>(R.id.btnParentesis).setOnClickListener(this)
+        // Asignar listener a los botones de operaciones
+        val operatorIds = listOf(
+            R.id.btnSumar, R.id.btnRestar, R.id.btnMultiplicar, R.id.btnDividir, R.id.btnPorcentaje
+        )
+        operatorIds.forEach { findViewById<Button>(it).setOnClickListener(this::onOperatorClick) }
 
-        findViewById<View>(R.id.btnAC).setOnClickListener(this)
-        findViewById<View>(R.id.btnIgual).setOnClickListener(this)
+        // Listeners para botones especiales
+        findViewById<Button>(R.id.btnAC).setOnClickListener { onClear() }
+        findViewById<Button>(R.id.btnIgual).setOnClickListener { onEqual() }
+        findViewById<Button>(R.id.btnParentesis).setOnClickListener { onParenthesisClick() }
     }
 
-    override fun onClick(v: View) {
-        val id = v.id
-        val b = v as Button
-        val buttonText = b.text.toString()
-        val textoActual = tvInput!!.text.toString()
+    // Este método ya no es necesario, lo dividimos en funciones más específicas
+    override fun onClick(v: View?) {}
 
-        if (id == R.id.btnAC) {
-            tvInput!!.text = ""
-            esPunto = false
-        } else if (id == R.id.btnIgual) {
-            calcularResultado(textoActual)
-        } else if (id == R.id.btnParentesis) {
-            manejarParentesis()
-        } else if (buttonText == ".") {
-            if (!esPunto) {
-                tvInput!!.append(buttonText)
+    private fun onNumberClick(view: View) {
+        val button = view as Button
+        val buttonText = button.text.toString()
+
+        if (buttonText == ".") {
+            if (ultimoEsNumero && !esPunto) {
+                tvInput.append(buttonText)
                 esPunto = true
+                ultimoEsNumero = false // Después de un punto no se puede poner otro punto
             }
-        } else if (id == R.id.btnSumar || id == R.id.btnRestar || id == R.id.btnMultiplicar || id == R.id.btnDividir || id == R.id.btnPorcentaje) {
-            tvInput!!.append(buttonText)
-            esPunto = false // Se puede poner punto después de un operador
         } else {
-            tvInput!!.append(buttonText)
+            tvInput.append(buttonText)
+            ultimoEsNumero = true
         }
     }
 
-    private fun manejarParentesis() {
-        if (esParentesisAbierto) {
-            tvInput!!.append(")")
-            esParentesisAbierto = false
-        } else {
-            tvInput!!.append("(")
-            esParentesisAbierto = true
+    private fun onOperatorClick(view: View) {
+        val button = view as Button
+        if (ultimoEsNumero && tvInput.text.isNotEmpty()) {
+            tvInput.append(button.text)
+            ultimoEsNumero = false
+            esPunto = false
         }
     }
 
-    private fun calcularResultado(expresionStr: String) {
-        if (expresionStr.isEmpty()) {
+    private fun onParenthesisClick() {
+        val text = tvInput.text.toString()
+        val openParentheses = text.count { it == '(' }
+        val closedParentheses = text.count { it == ')' }
+
+        if (ultimoEsNumero) {
+            if (openParentheses > closedParentheses) {
+                tvInput.append(")")
+                ultimoEsNumero = false
+            }
+        } else {
+            tvInput.append("(")
+            ultimoEsNumero = false
+        }
+    }
+
+
+    private fun onClear() {
+        tvInput.text = ""
+        ultimoEsNumero = false
+        esPunto = false
+    }
+
+    private fun onEqual() {
+        val expresionStr = tvInput.text.toString()
+        if (expresionStr.isEmpty() || !ultimoEsNumero) {
             return
         }
 
         try {
-            // Reemplazar el símbolo de porcentaje si es necesario para el cálculo
             val expresionParaCalcular = expresionStr.replace("%", "/100")
-
-            val expression: Expression = ExpressionBuilder(expresionParaCalcular).build()
-            val resultado: Double = expression.evaluate()
+            val expression = ExpressionBuilder(expresionParaCalcular).build()
+            val resultado = expression.evaluate()
 
             // Si el resultado es un entero, mostrarlo sin decimales
             if (resultado == resultado.toLong().toDouble()) {
-                tvInput!!.text = String.format("%d", resultado.toLong())
+                tvInput.text = resultado.toLong().toString()
             } else {
-                tvInput!!.text = String.format("%s", resultado)
+                tvInput.text = resultado.toString()
             }
 
-            // Permitir un nuevo punto en el resultado si es decimal
-            esPunto = tvInput!!.text.toString().contains(".")
+            esPunto = tvInput.text.contains(".")
         } catch (e: Exception) {
             Toast.makeText(this, "Expresión inválida", Toast.LENGTH_SHORT).show()
         }
